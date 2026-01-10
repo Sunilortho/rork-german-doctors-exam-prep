@@ -30,7 +30,9 @@
       },
       "package": "app.rork.german_doctors_exam_prep",
       "permissions": [
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -54,6 +56,14 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": "https://rork.com/"
+      },
+      "eas": {
+        "projectId": "65ee4257-6941-46a3-979d-302611bfca6a"
+      }
     }
   }
 }
