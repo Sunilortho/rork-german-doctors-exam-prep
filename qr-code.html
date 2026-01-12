@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>German Doctors Exam Prep - QR Code</title>
+    <title>Expo Go QR Code - German Doctors Exam Prep</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         * {
@@ -14,7 +14,7 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -24,52 +24,77 @@
         
         .container {
             background: white;
-            border-radius: 24px;
-            padding: 48px 40px;
-            max-width: 500px;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 550px;
             width: 100%;
-            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             text-align: center;
         }
         
-        h1 {
-            color: #0F172A;
-            font-size: 28px;
+        .header {
+            margin-bottom: 30px;
+        }
+        
+        .emoji {
+            font-size: 40px;
             margin-bottom: 12px;
+            display: block;
+        }
+        
+        h1 {
+            color: #1F2937;
+            font-size: 28px;
+            margin-bottom: 8px;
             font-weight: 700;
         }
         
         .subtitle {
-            color: #64748B;
-            font-size: 16px;
-            margin-bottom: 32px;
-            line-height: 1.5;
+            color: #6B7280;
+            font-size: 15px;
+            margin-bottom: 8px;
+        }
+        
+        .status {
+            color: #10B981;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 8px 12px;
+            background: #ECFDF5;
+            border-radius: 6px;
+            display: inline-block;
+            margin-top: 8px;
         }
         
         #qrcode {
             display: flex;
             justify-content: center;
-            margin: 32px 0;
-            padding: 24px;
-            background: #F8FAFC;
+            align-items: center;
+            margin: 40px 0;
+            padding: 30px;
+            background: linear-gradient(135deg, #F3F4F6 0%, #FFFFFF 100%);
             border-radius: 16px;
+            border: 3px solid #E5E7EB;
+            min-height: 350px;
         }
         
         .instructions {
             text-align: left;
-            background: #EFF6FF;
+            background: linear-gradient(135deg, #EFF6FF 0%, #FFFFFF 100%);
             border-left: 4px solid #3B82F6;
-            padding: 20px;
+            padding: 24px;
             border-radius: 8px;
-            margin-top: 32px;
+            margin-bottom: 24px;
             font-size: 14px;
             color: #1E40AF;
-            line-height: 1.6;
+            line-height: 1.8;
         }
         
         .instructions h3 {
-            margin-bottom: 12px;
+            margin-bottom: 16px;
             color: #1E3A8A;
+            font-size: 16px;
+            font-weight: 700;
         }
         
         .instructions ol {
@@ -77,86 +102,146 @@
         }
         
         .instructions li {
-            margin-bottom: 8px;
+            margin-bottom: 10px;
         }
         
-        .direct-link {
-            margin-top: 24px;
-            padding: 16px;
-            background: #DBEAFE;
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 12px 20px;
             border-radius: 8px;
-            text-decoration: none;
-            color: #0C63E4;
+            border: none;
             font-weight: 600;
-            display: inline-block;
-            border: 2px solid #3B82F6;
+            cursor: pointer;
+            font-size: 14px;
             transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
         
-        .direct-link:hover {
+        .btn-primary {
             background: #3B82F6;
             color: white;
+            grid-column: 1 / -1;
+        }
+        
+        .btn-primary:hover {
+            background: #2563EB;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #3B82F6;
+            border: 2px solid #3B82F6;
+        }
+        
+        .btn-secondary:hover {
+            background: #EFF6FF;
+            transform: translateY(-2px);
         }
         
         .footer {
             margin-top: 32px;
             padding-top: 24px;
-            border-top: 1px solid #E2E8F0;
-            color: #64748B;
+            border-top: 1px solid #E5E7EB;
+            color: #6B7280;
             font-size: 13px;
+            line-height: 1.8;
         }
         
-        .download-link {
-            display: inline-block;
+        .success-message {
+            display: none;
+            background: #DCFCE7;
+            color: #166534;
+            padding: 12px 16px;
+            border-radius: 6px;
             margin-top: 12px;
-            padding: 8px 16px;
-            background: #0F172A;
-            color: white;
-            border-radius: 8px;
-            text-decoration: none;
-            font-size: 12px;
-            font-weight: 600;
+            font-size: 13px;
+            font-weight: 500;
+            border: 1px solid #BBF7D0;
         }
         
-        .download-link:hover {
-            background: #1E293B;
+        .success-message.show {
+            display: block;
         }
         
-        .emoji {
-            font-size: 24px;
-            margin-right: 8px;
+        @media (max-width: 480px) {
+            .container {
+                padding: 24px;
+            }
+            
+            .button-group {
+                grid-template-columns: 1fr;
+            }
+            
+            #qrcode {
+                padding: 20px;
+                margin: 30px 0;
+            }
+            
+            h1 {
+                font-size: 24px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1><span class="emoji">🚀</span>German Doctors Exam Prep</h1>
-        <p class="subtitle">Scan this QR code with Expo Go to access the app</p>
+        <div class="header">
+            <span class="emoji">📱</span>
+            <h1>Expo Go QR Code</h1>
+            <p class="subtitle">German Doctors Exam Prep</p>
+            <div class="status">✅ Ready to Scan</div>
+        </div>
         
         <div id="qrcode"></div>
         
         <div class="instructions">
-            <h3>📱 How to Use:</h3>
+            <h3>🎯 How to Use:</h3>
             <ol>
-                <li>Download <strong>Expo Go</strong> app on your phone</li>
+                <li><strong>Download Expo Go</strong> on your phone
+                    <ul style="margin-top: 4px; margin-left: 20px; font-size: 13px;">
+                        <li>iOS: <a href="https://apps.apple.com/app/expo-go/id982107779" target="_blank" style="color: #3B82F6;">App Store</a></li>
+                        <li>Android: <a href="https://play.google.com/store/apps/details?id=host.exp.exponent" target="_blank" style="color: #3B82F6;">Google Play</a></li>
+                    </ul>
+                </li>
                 <li>Open Expo Go app</li>
-                <li>Tap the camera/QR icon</li>
-                <li>Scan this QR code</li>
-                <li>App will load automatically</li>
+                <li>Tap the <strong>camera icon</strong></li>
+                <li>Scan the QR code above</li>
+                <li>App loads in seconds!</li>
             </ol>
         </div>
         
-        <a href="exp://german-doctors-exam-prep" class="direct-link">
-            <span class="emoji">⚡</span>Or Tap Here to Open
-        </a>
+        <div class="button-group">
+            <a href="exp://german-doctors-exam-prep" class="btn btn-primary">
+                ⚡ Open in Expo Go Now
+            </a>
+            <button class="btn btn-secondary" onclick="copyLink()">📋 Copy Link</button>
+            <button class="btn btn-secondary" onclick="downloadQR()">📥 Save QR Image</button>
+        </div>
+        
+        <div id="successMessage" class="success-message">✅ Link copied to clipboard!</div>
         
         <div class="footer">
-            <p>🎤 Practice German medical dialogue with AI-powered patient responses</p>
+            <p><strong>What you'll get:</strong></p>
+            <p>🎤 Real-time German speech practice<br>
+            🤖 AI-powered patient responses<br>
+            📊 FSP exam preparation tool<br>
+            🌍 Work offline after first load</p>
             
-            <div>
-                <a href="https://apps.apple.com/app/expo-go/id982107779" class="download-link">iOS App Store</a>
-                <a href="https://play.google.com/store/apps/details?id=host.exp.exponent" class="download-link">Google Play</a>
-            </div>
+            <p style="margin-top: 16px; font-size: 12px; opacity: 0.8;">
+                Direct link: <code style="background: #F3F4F6; padding: 4px 8px; border-radius: 4px; font-family: monospace;">exp://german-doctors-exam-prep</code>
+            </p>
         </div>
     </div>
     
@@ -164,12 +249,35 @@
         // Generate QR code
         new QRCode(document.getElementById('qrcode'), {
             text: 'exp://german-doctors-exam-prep',
-            width: 256,
-            height: 256,
-            colorDark: '#0F172A',
+            width: 280,
+            height: 280,
+            colorDark: '#000000',
             colorLight: '#FFFFFF',
             correctLevel: QRCode.CorrectLevel.H
         });
+        
+        function copyLink() {
+            const text = 'exp://german-doctors-exam-prep';
+            navigator.clipboard.writeText(text).then(() => {
+                const msg = document.getElementById('successMessage');
+                msg.classList.add('show');
+                setTimeout(() => {
+                    msg.classList.remove('show');
+                }, 2000);
+            }).catch(() => {
+                alert('Could not copy: ' + text);
+            });
+        }
+        
+        function downloadQR() {
+            const qrcodeElement = document.querySelector('#qrcode img');
+            if (qrcodeElement) {
+                const link = document.createElement('a');
+                link.href = qrcodeElement.src;
+                link.download = 'expo-go-qr-code.png';
+                link.click();
+            }
+        }
     </script>
 </body>
 </html>
