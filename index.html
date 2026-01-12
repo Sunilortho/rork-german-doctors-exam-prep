@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>German Doctors Exam Prep - Expo Go</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .box {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 400px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #666;
+            margin: 10px 0;
+        }
+        #qr {
+            margin: 30px 0;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+        }
+        a, button {
+            display: inline-block;
+            margin: 10px 5px;
+            padding: 12px 20px;
+            background: #0066cc;
+            color: white;
+            text-decoration: none;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        a:hover, button:hover {
+            background: #0052a3;
+        }
+        .steps {
+            text-align: left;
+            background: #f0f8ff;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .steps ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .steps li {
+            margin: 8px 0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>📱 Expo Go QR Code</h1>
+        <p>German Doctors Exam Prep</p>
+        
+        <div id="qr"></div>
+        
+        <div class="steps">
+            <h3>Steps:</h3>
+            <ol>
+                <li>Download Expo Go app</li>
+                <li>Open Expo Go</li>
+                <li>Tap camera icon</li>
+                <li>Scan QR code above</li>
+            </ol>
+        </div>
+        
+        <a href="exp://german-doctors-exam-prep">⚡ Open Now</a>
+        <button onclick="copyText()">📋 Copy Link</button>
+        
+        <p style="margin-top: 20px; font-size: 12px; color: #999;">
+            Link: <strong>exp://german-doctors-exam-prep</strong>
+        </p>
+    </div>
+    
+    <script>
+        new QRCode(document.getElementById('qr'), {
+            text: 'exp://german-doctors-exam-prep',
+            width: 250,
+            height: 250
+        });
+        
+        function copyText() {
+            navigator.clipboard.writeText('exp://german-doctors-exam-prep');
+            alert('Link copied!');
+        }
+    </script>
+</body>
+</html>
