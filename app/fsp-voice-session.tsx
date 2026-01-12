@@ -1,7 +1,7 @@
 import { generateText } from '@rork-ai/toolkit-sdk';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams } from 'expo-router';
-import { Mic, Volume2 } from 'lucide-react-native';
+import { Mic, Volume2, Loader } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,6 +12,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Animated,
 } from 'react-native';
 
 interface Message {
@@ -19,6 +20,7 @@ interface Message {
   role: 'patient' | 'arzt';
   text: string;
   timestamp: Date;
+  isStreaming?: boolean;
 }
 
 type RecordingState = 'idle' | 'recording' | 'processing';
@@ -34,7 +36,49 @@ export default function FSPVoiceSessionScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
   const [currentSound, setCurrentSound] = useState<Audio.Sound | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  // Pulsing animation for recording indicator
+  useEffect(() => {
+    if (recordingState === 'recording') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 0,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(0);
+    }
+  }, [recordingState, pulseAnim]);
+
+  // Recording timer
+  useEffect(() => {
+    if (recordingState === 'recording') {
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      setRecordingTime(0);
+    }
+
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    };
+  }, [recordingState]);
 
   useEffect(() => {
     return () => {
@@ -72,49 +116,50 @@ export default function FSPVoiceSessionScreen() {
     }
   };
 
-  const playPatientMessage = useCallback(async (text: string) => {
-    try {
-      if (currentSound) {
-        await currentSound.unloadAsync();
-      }
-
-      const ttsUrl = `https://toolkit.rork.com/tts/generate/?text=${encodeURIComponent(text)}&voice=nova&language=de`;
-      
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: ttsUrl },
-        { shouldPlay: true }
-      );
-
-      setCurrentSound(sound);
-
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync();
-          setCurrentSound(null);
+  const playPatientMessage = useCallback(
+    async (text: string) => {
+      try {
+        if (currentSound) {
+          await currentSound.unloadAsync();
         }
-      });
-    } catch (error) {
-      console.error('TTS playback failed:', error);
-    }
-  }, [currentSound]);
+
+        setIsSpeaking(true);
+
+        const ttsUrl = `https://toolkit.rork.com/tts/generate/?text=${encodeURIComponent(text)}&voice=nova&language=de`;
+
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: ttsUrl },
+          { shouldPlay: true }
+        );
+
+        setCurrentSound(sound);
+
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            sound.unloadAsync();
+            setCurrentSound(null);
+            setIsSpeaking(false);
+          }
+        });
+      } catch (error) {
+        console.error('TTS playback failed:', error);
+        setIsSpeaking(false);
+      }
+    },
+    [currentSound]
+  );
 
   const startSession = useCallback(async () => {
-    console.log('Starting FSP session with:', {
-      personality,
-      difficulty,
-      examinerInterruptions,
-    });
-
     const initialMessage: Message = {
       id: Date.now().toString(),
       role: 'patient',
-      text: 'Guten Tag, Herr Doktor.',
+      text: 'Guten Tag, Herr Doktor. Wie kann ich dir heute helfen?',
       timestamp: new Date(),
     };
 
     setMessages([initialMessage]);
     await playPatientMessage(initialMessage.text);
-  }, [personality, difficulty, examinerInterruptions, playPatientMessage]);
+  }, [playPatientMessage]);
 
   useEffect(() => {
     requestMicrophonePermission();
@@ -124,7 +169,7 @@ export default function FSPVoiceSessionScreen() {
   const handleMicrophonePress = async () => {
     if (recordingState === 'recording') {
       await stopRecording();
-    } else if (recordingState === 'idle') {
+    } else if (recordingState === 'idle' && permissionGranted) {
       await startRecording();
     }
   };
@@ -139,8 +184,6 @@ export default function FSPVoiceSessionScreen() {
     }
 
     try {
-      console.log('Starting recording...');
-      
       if (Platform.OS !== 'web') {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
@@ -175,7 +218,6 @@ export default function FSPVoiceSessionScreen() {
 
         setRecording(newRecording);
         setRecordingState('recording');
-        console.log('Recording started');
       }
     } catch (error) {
       console.error('Failed to start recording:', error);
@@ -187,11 +229,10 @@ export default function FSPVoiceSessionScreen() {
     if (!recording) return;
 
     try {
-      console.log('Stopping recording...');
       setRecordingState('processing');
 
       await recording.stopAndUnloadAsync();
-      
+
       if (Platform.OS !== 'web') {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
@@ -199,7 +240,6 @@ export default function FSPVoiceSessionScreen() {
       }
 
       const uri = recording.getURI();
-      console.log('Recording stopped, URI:', uri);
 
       if (uri) {
         await transcribeAndRespond(uri);
@@ -244,7 +284,6 @@ export default function FSPVoiceSessionScreen() {
       }
 
       const { text: transcribedText } = await sttResponse.json();
-      console.log('Transcribed text:', transcribedText);
 
       const arztMessage: Message = {
         id: Date.now().toString(),
@@ -274,23 +313,37 @@ export default function FSPVoiceSessionScreen() {
 
       const systemPrompt = `Sie sind ein Patient bei einer Fachsprachprüfung für ausländische Ärzte in Deutschland.
 
-Persönlichkeit: ${personality === 'anxious' ? 'Sie sind nervös und unsicher' : personality === 'talkative' ? 'Sie geben ausführliche Antworten' : 'Sie geben kurze, direkte Antworten'}.
-Schwierigkeitsgrad: ${difficulty}
-Sprache: Ausschließlich Deutsch
+Personality: ${personality === 'anxious' ? 'Sie sind nervös und unsicher' : personality === 'talkative' ? 'Sie geben ausführliche Antworten' : 'Sie geben kurze, direkte Antworten'}.
+Difficulty Level: ${difficulty}
+Language: Exclusively German
 
-Wichtig:
-- Antworten Sie IMMER auf Deutsch
-- Bleiben Sie in Ihrer Rolle als Patient
-- Geben Sie realistische medizinische Symptome an
-- Seien Sie kooperativ aber realistisch
-- ${difficulty === 'C1' ? 'Verwenden Sie medizinisches Fachvokabular' : difficulty === 'B2' ? 'Verwenden Sie alltägliche Sprache mit gelegentlichen Fachbegriffen' : 'Verwenden Sie einfache, alltägliche Sprache'}
+IMPORTANT RULES:
+- ALWAYS respond in German
+- Stay in character as a patient
+- Provide realistic medical symptoms
+- Be cooperative but realistic
+- ${difficulty === 'C1' ? 'Use medical terminology' : difficulty === 'B2' ? 'Use everyday language with occasional medical terms' : 'Use simple, everyday language'}
+- Response length: ${personality === 'brief' ? '1-2 sentences' : personality === 'anxious' ? '2-3 sentences, showing nervousness' : '3-4 sentences, detailed'}
 
-Bisheriger Gesprächsverlauf:
+Conversation history:
 ${conversationHistory}
 
-Arzt: ${arztInput}
+Doctor (Arzt): ${arztInput}
 
-Antworten Sie als Patient (auf Deutsch, ${personality === 'brief' ? '1-2 Sätze' : personality === 'anxious' ? '2-3 Sätze, nervös' : '3-4 Sätze, ausführlich'}):`;
+Respond naturally as the patient (auf Deutsch):`;
+
+      // Add streaming message placeholder
+      const streamingMessageId = Date.now().toString();
+      const streamingMessage: Message = {
+        id: streamingMessageId,
+        role: 'patient',
+        text: '',
+        timestamp: new Date(),
+        isStreaming: true,
+      };
+
+      setMessages((prev) => [...prev, streamingMessage]);
+      scrollViewRef.current?.scrollToEnd({ animated: true });
 
       const patientResponse = await generateText(systemPrompt);
 
@@ -298,19 +351,24 @@ Antworten Sie als Patient (auf Deutsch, ${personality === 'brief' ? '1-2 Sätze'
         throw new Error('Empty response from AI');
       }
 
-      const patientMessage: Message = {
-        id: Date.now().toString(),
+      // Update with final message
+      const finalMessage: Message = {
+        id: streamingMessageId,
         role: 'patient',
         text: patientResponse.trim(),
         timestamp: new Date(),
+        isStreaming: false,
       };
 
-      setMessages((prev) => [...prev, patientMessage]);
-      await playPatientMessage(patientMessage.text);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === streamingMessageId ? finalMessage : m))
+      );
+
+      await playPatientMessage(patientResponse.trim());
       setRecordingState('idle');
     } catch (error) {
       console.error('Failed to generate patient response:', error);
-      
+
       const fallbackMessage: Message = {
         id: Date.now().toString(),
         role: 'patient',
@@ -324,9 +382,9 @@ Antworten Sie als Patient (auf Deutsch, ${personality === 'brief' ? '1-2 Sätze'
     }
   };
 
-
-
   const replayLastPatientMessage = async () => {
+    if (isSpeaking) return; // Prevent multiple concurrent playbacks
+
     const lastPatientMessage = [...messages]
       .reverse()
       .find((m) => m.role === 'patient');
@@ -336,12 +394,25 @@ Antworten Sie als Patient (auf Deutsch, ${personality === 'brief' ? '1-2 Sätze'
     }
   };
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.3],
+  });
+
   return (
     <View style={styles.container}>
       <ScrollView
         ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
-        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() =>
+          scrollViewRef.current?.scrollToEnd({ animated: true })
+        }
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.messagesContainer}>
@@ -354,9 +425,15 @@ Antworten Sie als Patient (auf Deutsch, ${personality === 'brief' ? '1-2 Sätze'
               ]}
             >
               <Text style={styles.messageRole}>
-                {message.role === 'patient' ? 'Patient' : 'Arzt (Sie)'}
+                {message.role === 'patient' ? '👤 Patient' : '👨‍⚕️ You'}
               </Text>
               <Text style={styles.messageText}>{message.text}</Text>
+              {message.isStreaming && (
+                <View style={styles.streamingIndicator}>
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                  <Text style={styles.streamingText}>Listening...</Text>
+                </View>
+              )}
             </View>
           ))}
         </View>
@@ -364,7 +441,7 @@ Antworten Sie als Patient (auf Deutsch, ${personality === 'brief' ? '1-2 Sätze'
         {!permissionGranted && (
           <View style={styles.permissionWarning}>
             <Text style={styles.permissionWarningText}>
-              Microphone permission required for voice recording
+              🎤 Microphone permission required for voice recording
             </Text>
           </View>
         )}
@@ -373,8 +450,15 @@ Antworten Sie als Patient (auf Deutsch, ${personality === 'brief' ? '1-2 Sätze'
           <View style={styles.stateIndicator}>
             {recordingState === 'recording' && (
               <>
-                <View style={styles.recordingPulse} />
-                <Text style={styles.stateText}>Recording...</Text>
+                <Animated.View
+                  style={[
+                    styles.recordingPulse,
+                    { transform: [{ scale: pulseScale }] },
+                  ]}
+                />
+                <Text style={styles.stateText}>
+                  Recording {formatTime(recordingTime)}
+                </Text>
               </>
             )}
             {recordingState === 'processing' && (
@@ -386,20 +470,32 @@ Antworten Sie als Patient (auf Deutsch, ${personality === 'brief' ? '1-2 Sätze'
           </View>
         )}
 
+        {isSpeaking && (
+          <View style={styles.speakingIndicator}>
+            <Loader size={16} color="#60A5FA" />
+            <Text style={styles.speakingText}>Patient speaking...</Text>
+          </View>
+        )}
+
         <View style={styles.hint}>
           <Text style={styles.hintText}>
-            Antworten Sie mündlich, wie in der echten Prüfung.
+            🎤 Speak naturally in German, like in the real exam. Press and hold
+            the microphone to record.
           </Text>
         </View>
       </ScrollView>
 
       <View style={styles.bottomControls}>
         <TouchableOpacity
-          style={styles.replayButton}
+          style={[
+            styles.replayButton,
+            isSpeaking && styles.replayButtonActive,
+          ]}
           onPress={replayLastPatientMessage}
           activeOpacity={0.7}
+          disabled={isSpeaking}
         >
-          <Volume2 size={24} color="#60A5FA" />
+          <Volume2 size={24} color={isSpeaking ? '#999' : '#60A5FA'} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -407,15 +503,20 @@ Antworten Sie als Patient (auf Deutsch, ${personality === 'brief' ? '1-2 Sätze'
             styles.micButton,
             recordingState === 'recording' && styles.micButtonActive,
             !permissionGranted && styles.micButtonDisabled,
+            recordingState === 'processing' && styles.micButtonProcessing,
           ]}
           onPress={handleMicrophonePress}
           activeOpacity={0.8}
-          disabled={!permissionGranted || recordingState === 'processing'}
+          disabled={!permissionGranted || isSpeaking}
         >
           {recordingState === 'processing' ? (
             <ActivityIndicator size="large" color="#FFFFFF" />
           ) : (
-            <Mic size={32} color="#FFFFFF" />
+            <Mic
+              size={32}
+              color="#FFFFFF"
+              strokeWidth={2.5}
+            />
           )}
         </TouchableOpacity>
 
@@ -431,7 +532,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#0F172A',
   },
   scrollContent: {
-    paddingBottom: 140,
+    paddingBottom: 180,
     paddingTop: 16,
   },
   messagesContainer: {
@@ -449,7 +550,7 @@ const styles = StyleSheet.create({
   },
   messageCardArzt: {
     borderLeftColor: '#10B981',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
   },
   messageRole: {
     fontSize: 12,
@@ -464,6 +565,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     lineHeight: 22,
   },
+  streamingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
+  streamingText: {
+    fontSize: 12,
+    color: '#3B82F6',
+    fontWeight: '500',
+  },
   permissionWarning: {
     marginHorizontal: 16,
     marginTop: 16,
@@ -476,6 +588,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     lineHeight: 20,
+    fontWeight: '500',
   },
   stateIndicator: {
     flexDirection: 'row',
@@ -494,6 +607,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#3B82F6',
+  },
+  speakingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  speakingText: {
+    fontSize: 13,
+    color: '#60A5FA',
+    fontWeight: '500',
   },
   hint: {
     marginHorizontal: 16,
@@ -534,6 +659,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
   },
+  replayButtonActive: {
+    opacity: 0.5,
+  },
   replayButtonPlaceholder: {
     width: 56,
     height: 56,
@@ -554,6 +682,10 @@ const styles = StyleSheet.create({
   micButtonActive: {
     backgroundColor: '#EF4444',
     shadowColor: '#EF4444',
+  },
+  micButtonProcessing: {
+    backgroundColor: '#F59E0B',
+    shadowColor: '#F59E0B',
   },
   micButtonDisabled: {
     backgroundColor: '#475569',
