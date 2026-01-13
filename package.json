@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
+    "dev": "expo start --web",
     "start": "expo start",
     "start-web": "expo start --web",
     "start-web-local": "expo start --web --localhost",
