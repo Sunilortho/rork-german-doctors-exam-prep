@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import { BookOpen, Map, User } from 'lucide-react-native';
 import React from 'react';
 
 export default function TabLayout() {
@@ -14,6 +15,10 @@ export default function TabLayout() {
         },
         headerStyle: {
           backgroundColor: '#0F172A',
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: 1,
+          borderBottomColor: '#1E293B',
         },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: {
@@ -27,7 +32,7 @@ export default function TabLayout() {
         options={{
           title: 'Roadmap',
           headerTitle: 'Your Roadmap',
-          tabBarLabel: 'Roadmap',
+          tabBarIcon: ({ color }) => <Map size={24} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -35,7 +40,7 @@ export default function TabLayout() {
         options={{
           title: 'Resources',
           headerTitle: 'Resources',
-          tabBarLabel: 'Resources',
+          tabBarIcon: ({ color }) => <BookOpen size={24} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -43,7 +48,7 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           headerTitle: 'Profile',
-          tabBarLabel: 'Profile',
+          tabBarIcon: ({ color }) => <User size={24} color={color} />,
         }}
       />
     </Tabs>

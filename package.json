@@ -3,14 +3,10 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "dev": "expo start --web",
-    "start": "expo start",
-    "start-web": "expo start --web",
-    "start-web-local": "expo start --web --localhost",
-    "lint": "expo lint",
-    "build-web": "expo export --platform web",
-    "build:ios": "eas build --platform ios",
-    "build:android": "eas build --platform android"
+    "start": "bunx rork start -p stt3lyo9df781gk8kbsxp --tunnel",
+    "start-web": "bunx rork start -p stt3lyo9df781gk8kbsxp --web --tunnel",
+    "start-web-dev": "DEBUG=expo* bunx rork start -p stt3lyo9df781gk8kbsxp --web --tunnel",
+    "lint": "expo lint"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -54,7 +50,6 @@
     "@babel/core": "^7.25.2",
     "@expo/ngrok": "^4.1.0",
     "@types/react": "~19.1.10",
-    "babel-plugin-module-resolver": "^5.0.0",
     "eslint": "^9.31.0",
     "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"

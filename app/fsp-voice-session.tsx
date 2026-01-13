@@ -1,6 +1,7 @@
 import { generateText } from '@rork-ai/toolkit-sdk';
 import { Audio } from 'expo-av';
 import { useLocalSearchParams } from 'expo-router';
+import { Mic, Volume2 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -71,46 +72,49 @@ export default function FSPVoiceSessionScreen() {
     }
   };
 
-  const playPatientMessage = useCallback(
-    async (text: string) => {
-      try {
-        if (currentSound) {
-          await currentSound.unloadAsync();
-        }
-
-        const ttsUrl = `https://toolkit.rork.com/tts/generate/?text=${encodeURIComponent(text)}&voice=nova&language=de`;
-
-        const { sound } = await Audio.Sound.createAsync(
-          { uri: ttsUrl },
-          { shouldPlay: true }
-        );
-
-        setCurrentSound(sound);
-
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (status.isLoaded && status.didJustFinish) {
-            sound.unloadAsync();
-            setCurrentSound(null);
-          }
-        });
-      } catch (error) {
-        console.error('TTS playback failed:', error);
+  const playPatientMessage = useCallback(async (text: string) => {
+    try {
+      if (currentSound) {
+        await currentSound.unloadAsync();
       }
-    },
-    [currentSound]
-  );
+
+      const ttsUrl = `https://toolkit.rork.com/tts/generate/?text=${encodeURIComponent(text)}&voice=nova&language=de`;
+      
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: ttsUrl },
+        { shouldPlay: true }
+      );
+
+      setCurrentSound(sound);
+
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync();
+          setCurrentSound(null);
+        }
+      });
+    } catch (error) {
+      console.error('TTS playback failed:', error);
+    }
+  }, [currentSound]);
 
   const startSession = useCallback(async () => {
+    console.log('Starting FSP session with:', {
+      personality,
+      difficulty,
+      examinerInterruptions,
+    });
+
     const initialMessage: Message = {
       id: Date.now().toString(),
       role: 'patient',
-      text: 'Guten Tag, Herr Doktor. Wie geht es dir heute?',
+      text: 'Guten Tag, Herr Doktor.',
       timestamp: new Date(),
     };
 
     setMessages([initialMessage]);
     await playPatientMessage(initialMessage.text);
-  }, [playPatientMessage]);
+  }, [personality, difficulty, examinerInterruptions, playPatientMessage]);
 
   useEffect(() => {
     requestMicrophonePermission();
@@ -120,7 +124,7 @@ export default function FSPVoiceSessionScreen() {
   const handleMicrophonePress = async () => {
     if (recordingState === 'recording') {
       await stopRecording();
-    } else if (recordingState === 'idle' && permissionGranted) {
+    } else if (recordingState === 'idle') {
       await startRecording();
     }
   };
@@ -135,6 +139,8 @@ export default function FSPVoiceSessionScreen() {
     }
 
     try {
+      console.log('Starting recording...');
+      
       if (Platform.OS !== 'web') {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
@@ -169,6 +175,7 @@ export default function FSPVoiceSessionScreen() {
 
         setRecording(newRecording);
         setRecordingState('recording');
+        console.log('Recording started');
       }
     } catch (error) {
       console.error('Failed to start recording:', error);
@@ -180,10 +187,11 @@ export default function FSPVoiceSessionScreen() {
     if (!recording) return;
 
     try {
+      console.log('Stopping recording...');
       setRecordingState('processing');
 
       await recording.stopAndUnloadAsync();
-
+      
       if (Platform.OS !== 'web') {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
@@ -191,6 +199,7 @@ export default function FSPVoiceSessionScreen() {
       }
 
       const uri = recording.getURI();
+      console.log('Recording stopped, URI:', uri);
 
       if (uri) {
         await transcribeAndRespond(uri);
@@ -235,6 +244,7 @@ export default function FSPVoiceSessionScreen() {
       }
 
       const { text: transcribedText } = await sttResponse.json();
+      console.log('Transcribed text:', transcribedText);
 
       const arztMessage: Message = {
         id: Date.now().toString(),
@@ -264,43 +274,43 @@ export default function FSPVoiceSessionScreen() {
 
       const systemPrompt = `Sie sind ein Patient bei einer Fachsprachprüfung für ausländische Ärzte in Deutschland.
 
-Personality: ${personality === 'anxious' ? 'Sie sind nervös und unsicher' : personality === 'talkative' ? 'Sie geben ausführliche Antworten' : 'Sie geben kurze, direkte Antworten'}.
-Difficulty Level: ${difficulty}
-Language: Exclusively German
+Persönlichkeit: ${personality === 'anxious' ? 'Sie sind nervös und unsicher' : personality === 'talkative' ? 'Sie geben ausführliche Antworten' : 'Sie geben kurze, direkte Antworten'}.
+Schwierigkeitsgrad: ${difficulty}
+Sprache: Ausschließlich Deutsch
 
-IMPORTANT:
-- ALWAYS respond in German only
-- Be natural and realistic
-- ${difficulty === 'C1' ? 'Use medical terminology' : 'Use everyday language'}
-- Response: 1-3 sentences
+Wichtig:
+- Antworten Sie IMMER auf Deutsch
+- Bleiben Sie in Ihrer Rolle als Patient
+- Geben Sie realistische medizinische Symptome an
+- Seien Sie kooperativ aber realistisch
+- ${difficulty === 'C1' ? 'Verwenden Sie medizinisches Fachvokabular' : difficulty === 'B2' ? 'Verwenden Sie alltägliche Sprache mit gelegentlichen Fachbegriffen' : 'Verwenden Sie einfache, alltägliche Sprache'}
 
-Conversation:
+Bisheriger Gesprächsverlauf:
 ${conversationHistory}
 
 Arzt: ${arztInput}
 
-Patient response (German only):`;
+Antworten Sie als Patient (auf Deutsch, ${personality === 'brief' ? '1-2 Sätze' : personality === 'anxious' ? '2-3 Sätze, nervös' : '3-4 Sätze, ausführlich'}):`;
 
       const patientResponse = await generateText(systemPrompt);
 
       if (!patientResponse || patientResponse.trim().length === 0) {
-        throw new Error('Empty response');
+        throw new Error('Empty response from AI');
       }
 
-      const finalMessage: Message = {
+      const patientMessage: Message = {
         id: Date.now().toString(),
         role: 'patient',
         text: patientResponse.trim(),
         timestamp: new Date(),
       };
 
-      setMessages((prev) => [...prev, finalMessage]);
-
-      await playPatientMessage(patientResponse.trim());
+      setMessages((prev) => [...prev, patientMessage]);
+      await playPatientMessage(patientMessage.text);
       setRecordingState('idle');
     } catch (error) {
-      console.error('Failed to generate response:', error);
-
+      console.error('Failed to generate patient response:', error);
+      
       const fallbackMessage: Message = {
         id: Date.now().toString(),
         role: 'patient',
@@ -314,55 +324,102 @@ Patient response (German only):`;
     }
   };
 
+
+
+  const replayLastPatientMessage = async () => {
+    const lastPatientMessage = [...messages]
+      .reverse()
+      .find((m) => m.role === 'patient');
+
+    if (lastPatientMessage) {
+      await playPatientMessage(lastPatientMessage.text);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView
         ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
-        onContentSizeChange={() =>
-          scrollViewRef.current?.scrollToEnd({ animated: true })
-        }
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>🎤 FSP Voice Practice</Text>
-
         <View style={styles.messagesContainer}>
           {messages.map((message) => (
             <View
               key={message.id}
               style={[
-                styles.messageBubble,
-                message.role === 'arzt' && styles.messageBubbleArzt,
+                styles.messageCard,
+                message.role === 'arzt' && styles.messageCardArzt,
               ]}
             >
-              <Text style={styles.roleLabel}>
-                {message.role === 'patient' ? 'Patient' : 'You (Arzt)'}
+              <Text style={styles.messageRole}>
+                {message.role === 'patient' ? 'Patient' : 'Arzt (Sie)'}
               </Text>
               <Text style={styles.messageText}>{message.text}</Text>
             </View>
           ))}
         </View>
 
-        {recordingState === 'processing' && (
-          <View style={styles.processingContainer}>
-            <ActivityIndicator size="large" color="#3B82F6" />
-            <Text style={styles.processingText}>Processing...</Text>
+        {!permissionGranted && (
+          <View style={styles.permissionWarning}>
+            <Text style={styles.permissionWarningText}>
+              Microphone permission required for voice recording
+            </Text>
           </View>
         )}
+
+        {recordingState !== 'idle' && (
+          <View style={styles.stateIndicator}>
+            {recordingState === 'recording' && (
+              <>
+                <View style={styles.recordingPulse} />
+                <Text style={styles.stateText}>Recording...</Text>
+              </>
+            )}
+            {recordingState === 'processing' && (
+              <>
+                <ActivityIndicator size="small" color="#3B82F6" />
+                <Text style={styles.stateText}>Processing...</Text>
+              </>
+            )}
+          </View>
+        )}
+
+        <View style={styles.hint}>
+          <Text style={styles.hintText}>
+            Antworten Sie mündlich, wie in der echten Prüfung.
+          </Text>
+        </View>
       </ScrollView>
 
-      <View style={styles.controls}>
+      <View style={styles.bottomControls}>
+        <TouchableOpacity
+          style={styles.replayButton}
+          onPress={replayLastPatientMessage}
+          activeOpacity={0.7}
+        >
+          <Volume2 size={24} color="#60A5FA" />
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[
             styles.micButton,
             recordingState === 'recording' && styles.micButtonActive,
+            !permissionGranted && styles.micButtonDisabled,
           ]}
           onPress={handleMicrophonePress}
-          disabled={!permissionGranted}
+          activeOpacity={0.8}
+          disabled={!permissionGranted || recordingState === 'processing'}
         >
-          <Text style={styles.micButtonText}>
-            {recordingState === 'recording' ? '⏹️ Stop' : '🎤 Record'}
-          </Text>
+          {recordingState === 'processing' ? (
+            <ActivityIndicator size="large" color="#FFFFFF" />
+          ) : (
+            <Mic size={32} color="#FFFFFF" />
+          )}
         </TouchableOpacity>
+
+        <View style={styles.replayButtonPlaceholder} />
       </View>
     </View>
   );
@@ -371,77 +428,135 @@ Patient response (German only):`;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#0F172A',
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 24,
-    textAlign: 'center',
-    color: '#1F2937',
+    paddingBottom: 140,
+    paddingTop: 16,
   },
   messagesContainer: {
+    paddingHorizontal: 16,
     gap: 12,
   },
-  messageBubble: {
-    backgroundColor: '#E0E7FF',
+  messageCard: {
+    backgroundColor: '#1E293B',
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderLeftWidth: 4,
+    borderLeftColor: '#60A5FA',
   },
-  messageBubbleArzt: {
-    backgroundColor: '#DBEAFE',
+  messageCardArzt: {
+    borderLeftColor: '#10B981',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
   },
-  roleLabel: {
+  messageRole: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#4B5563',
-    marginBottom: 4,
+    fontWeight: '700' as const,
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+    letterSpacing: 0.5,
   },
   messageText: {
     fontSize: 15,
-    color: '#1F2937',
+    color: '#FFFFFF',
+    lineHeight: 22,
+  },
+  permissionWarning: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    backgroundColor: '#DC2626',
+    borderRadius: 12,
+    padding: 16,
+  },
+  permissionWarningText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    textAlign: 'center',
     lineHeight: 20,
   },
-  processingContainer: {
-    marginTop: 24,
+  stateIndicator: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
     gap: 12,
   },
-  processingText: {
-    fontSize: 14,
-    color: '#3B82F6',
-    fontWeight: '500',
+  recordingPulse: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#EF4444',
   },
-  controls: {
+  stateText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#3B82F6',
+  },
+  hint: {
+    marginHorizontal: 16,
+    marginTop: 24,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.2)',
+  },
+  hintText: {
+    fontSize: 13,
+    color: '#93C5FD',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  bottomControls: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 16,
-    backgroundColor: 'white',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    backgroundColor: '#0F172A',
+    borderTopWidth: 1,
+    borderTopColor: '#1E293B',
+  },
+  replayButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#1E293B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  replayButtonPlaceholder: {
+    width: 56,
+    height: 56,
   },
   micButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: '#3B82F6',
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-    minWidth: 200,
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
   },
   micButtonActive: {
     backgroundColor: '#EF4444',
+    shadowColor: '#EF4444',
   },
-  micButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
+  micButtonDisabled: {
+    backgroundColor: '#475569',
+    shadowOpacity: 0,
   },
 });
